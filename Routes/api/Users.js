@@ -1,6 +1,11 @@
 const express = require("express");
 const router = express.Router();
+const gravatar = require("gravatar");
+const bcrypt = require("bcryptjs");
 const { check, validationResult } = require("express-validator");
+
+const User = require("../../Models/Users");
+
 //@route  POST api/users
 //@desc  Register user
 //@access   Public
@@ -16,16 +21,42 @@ router.post(
     ).isLength({ min: 6 }),
   ],
 
-  (req, res) => {
+  async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
-
-    //see if user exists
-    //get users gravatar
-    //encrypt password
-    //return jsonwebtoken
+    const { name, email, password } = req.body;
+    try {
+      let user = await User.findOne({ email });
+      if (user) {
+        return res
+          .status(400)
+          .json({ errors: [{ msg: "User already exist" }] });
+      }
+      //see if user exists
+      const avatar = gravatar.url(email, {
+        s: "200",
+        r: "pg",
+        d: "mm",
+      });
+      user = new User({
+        name,
+        email,
+        avatar,
+        password,
+      });
+      //get users gravatar
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(password, salt);
+      await user.save();
+      //encrypt password
+      //return jsonwebtoken
+      res.send("User registrerd");
+    } catch (err) {
+      console.log(err.message);
+      res.status(500).send("Server Error");
+    }
 
     res.send("User route");
   }
